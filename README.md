@@ -1,164 +1,240 @@
-# SysKit Scanner — System Engineer Toolkit
+# SysKit Scanner v2.0.0
 
-A lightweight, **read-only** system diagnostic toolkit for system engineers.  
-Supports **Windows (PowerShell)**, **Ubuntu (Bash)**, and **Rocky Linux (Bash)**.
+> **系統健檢掃描工具 — 非管理員 / 非 root 安全掃描**
 
----
-
-## Features
-
-| Category | What it collects |
-|---|---|
-| **System Info** | OS version, kernel, CPU, memory, BIOS/firmware, uptime |
-| **Network Config** | IP addresses, routes, DNS servers |
-| **Connectivity** | Ping, DNS resolution, public IP, traceroute (limited hops) |
-| **Connections** | Listening ports, established TCP/UDP connections |
-| **Processes** | Top CPU/memory consumers, process tree, suspicious process names |
-| **Startup & Persistence** | Auto-start services, scheduled tasks/cron, startup entries |
-| **Users & Logins** | Local users, login history, failed logins |
-| **Package Updates** | Upgradable packages (query only — never installs) |
-| **Firewall** | Firewall status & inbound rules (read-only) |
-| **Disk & Storage** | Filesystem usage, mount points, large files |
-| **Suspicious Files** | Scans key directories for `.hta`, `.scr`, `.vbs`, `.wsf`, `.docm`, `.xlsm`, etc. |
-| **Log Summary** | Recent system/application/auth errors (limited entries) |
-| **VM/Container** | Detects if running in a VM or container |
+跨平台 (Windows / Rocky Linux / Ubuntu) 的系統健檢掃描器，  
+所有指令皆為**唯讀 (read-only)**，**絕不使用管理員或 root 權限**。
 
 ---
 
-## Safety Guarantees
+## 功能特色
 
-- **Non-privileged only** — refuses to run as Administrator / root.
-- **Read-only** — no files are created, modified, or deleted on the system (except the report).
-- **No network exposure** — no data is uploaded; only one outbound HTTP call to get your public IP.
-- **No package changes** — queries update status but never installs or removes anything.
-- **No dangerous commands** — `rm`, `dd`, `mkfs`, `shutdown`, service stop, firewall changes, etc. are explicitly forbidden.
-- **No deprecated tools** — avoids `netstat`, `ifconfig`, `wmic` in favor of modern alternatives.
-- **Sensitive data masking** — patterns like `password=`, `token=`, `secret=` are masked in output.
-- **Command timeout** — each command has a 10-second timeout to prevent hangs.
-- **Output truncation** — each section is capped at 60 lines to keep reports manageable.
-
----
-
-## Requirements
-
-| Platform | Requirements |
-|---|---|
-| **Windows** | PowerShell 5.1+ (built-in on Windows 10/11/Server 2016+) |
-| **Ubuntu** | Bash 4+, coreutils, iproute2, systemd (standard on Ubuntu 18.04+) |
-| **Rocky** | Bash 4+, coreutils, iproute2, systemd, dnf (standard on Rocky 8/9) |
-| **Launcher** | Python 3.6+ (optional — you can run scripts directly) |
-
-No additional packages need to be installed.
+| 特色 | 說明 |
+|------|------|
+| 🔒 零權限 | 禁止以 root / Administrator 身分執行；所有指令為非特權唯讀 |
+| 📊 CIS-like 基準 | 10 項安全檢查 (PASS / FAIL / SKIPPED)，含計分百分比 |
+| 🌐 跨平台 | Windows (PowerShell)、Rocky/CentOS (Bash)、Ubuntu/Debian (Bash) |
+| 📝 雙格式報告 | TXT (繁體中文摘要表頭) + JSON (機器可讀) |
+| ⚙️ 可設定閾值 | `config/thresholds.conf` 控制記憶體、磁碟、危險埠等門檻 |
+| 🔍 取證建議 | 報告末尾附帶管理員專屬取證指令參考 (不自動執行) |
+| 🛡️ 敏感資料遮蔽 | 自動遮蔽 password=、token= 等敏感字串 |
+| ⏱️ 指令逾時 | 每個指令預設 10 秒逾時，避免掃描卡住 |
 
 ---
 
-## Quick Start
+## 專案結構
 
-### Option 1: Use the Launcher (recommended)
+```
+basic_check_tookit/
+├── launcher.py              # Python 跨平台選單啟動器
+├── scan_rocky.sh            # Rocky / CentOS / RHEL 掃描腳本
+├── scan_ubuntu.sh           # Ubuntu / Debian 掃描腳本
+├── scan.ps1                 # Windows PowerShell 掃描腳本
+├── README.md                # 本文件
+├── config/
+│   └── thresholds.conf      # 閾值設定檔 (KEY=VALUE)
+├── reports/                 # 報告輸出目錄
+│   ├── syskit_report_*.txt  # TXT 報告 (自動生成)
+│   ├── syskit_report_*.json # JSON 報告 (自動生成)
+│   ├── sample_report_v2.txt # 範例 TXT 報告
+│   ├── sample_report.json   # 範例 JSON 報告
+│   ├── scan_commands.json   # 非管理員指令清冊 (JSON)
+│   └── scan_commands.csv    # 非管理員指令清冊 (CSV)
+├── tools/
+│   ├── load_scan_commands.py # Python 指令清冊載入器
+│   ├── ScanCommands.ps1     # PowerShell 指令清冊模組
+│   └── README_SCAN_MODULE.md
+└── .gitkeep
+```
+
+---
+
+## 快速開始
+
+### 方式 1：使用 Python 啟動器 (推薦)
 
 ```bash
-# Interactive menu
+# Linux / macOS
+python3 launcher.py
+
+# Windows (PowerShell)
 python launcher.py
-
-# Auto-detect OS and run immediately
-python launcher.py --auto
 ```
 
-### Option 2: Run scripts directly
+啟動器會自動偵測作業系統並執行對應腳本，也可手動選擇。
 
-**Windows (PowerShell):**
+### 方式 2：直接執行腳本
+
+```bash
+# Rocky / CentOS / RHEL
+bash scan_rocky.sh
+
+# Ubuntu / Debian
+bash scan_ubuntu.sh
+```
+
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scan.ps1
+# Windows (PowerShell 5.1+)
+powershell -ExecutionPolicy Bypass -File scan.ps1
 ```
 
-**Ubuntu:**
+> ⚠️ **注意：** 請以一般使用者身分執行。腳本偵測到 root/admin 會拒絕執行。
+
+---
+
+## 報告說明
+
+### TXT 報告
+
+報告開頭包含**繁體中文摘要表頭**：
+
+```
+================================================================================
+  SysKit Scanner v2.0.0  |  系統健檢摘要表
+================================================================================
+  [狀態] 🟢 正常
+  [主機] my-server (Rocky Linux 9.3)
+  [負載] LA: 0.15 / 0.20 / 0.18 | Processes: 185
+  ...
+  ▶ CIS-like 安全基準 (Security Benchmark)
+    - 通過: 8 / 未通過: 1 / 跳過: 1 — 分數: 8/10
+================================================================================
+```
+
+後面接詳細掃描的每個 Section 原始輸出。
+
+### JSON 報告
+
+JSON 報告包含所有結構化資料，可供後續自動化分析：
+
+```json
+{
+  "host": "my-server",
+  "os": "Rocky Linux 9.3",
+  "scanner_version": "2.0.0",
+  "overall_status": "🟢 正常",
+  "cis_score": { "passed": 8, "failed": 1, "skipped": 1, "total": 10 },
+  "cis_checks": [ ... ],
+  "critical_findings": [],
+  "warn_findings": [ ... ]
+}
+```
+
+---
+
+## CIS-like 安全基準 (10 項)
+
+所有檢查皆使用非特權指令，無需 root / admin：
+
+| # | 檢查項目 | Linux | Windows |
+|---|----------|-------|---------|
+| 1 | SSH / RDP 監聽 | `ss -tlnp` 檢查 :22 | `Get-NetTCPConnection` 檢查 :3389 |
+| 2 | 危險埠開放 | 比對 DANGEROUS_PORTS | 同左 |
+| 3 | 記憶體使用 | `free -m` 剩餘 MiB | `Win32_OperatingSystem` FreePhysicalMemory |
+| 4 | Swap / 磁碟使用 | `df -h` 檢查 / | `Get-PSDrive C` 使用率 |
+| 5 | SELinux / Defender | `getenforce` | `Get-MpComputerStatus` |
+| 6 | 關鍵檔案權限 | `/etc/passwd` 權限 | 防火牆設定檔狀態 |
+| 7 | Home 目錄權限 | `stat $HOME` | 自動啟動服務數量 |
+| 8 | 使用者 crontab | `crontab -l` | 啟動項目數量 |
+| 9 | SUID/SGID 文件 | `find $HOME` | Guest 帳戶狀態 |
+| 10 | 程序數量 | `ps aux` 行數 | `Get-Process` 計數 |
+
+**計分：** PASS = 1 分 / FAIL = 0 分 / SKIPPED = 0 分
+
+---
+
+## 閾值設定
+
+編輯 `config/thresholds.conf`：
+
+```ini
+# 記憶體 (MiB)
+MEM_WARN_MB=300
+MEM_CRIT_MB=100
+
+# Swap (MiB) — 僅 Linux
+SWAP_WARN_MB=200
+
+# 磁碟使用率 (%)
+DISK_WARN_PERCENT=80
+DISK_CRIT_PERCENT=90
+
+# CPU 負載 — 僅 Linux
+LOAD_WARN=4.0
+
+# 危險埠清單
+DANGEROUS_PORTS=21,23,25,69,111,135,139,445,514,631,1433,1434,3306,3389,5432,5900,6379,8080,9200,27017
+```
+
+---
+
+## 禁止使用的指令
+
+v2 嚴格禁止所有需要 root / admin 的指令。以下操作在報告中標為 **[SKIPPED]**，  
+並附帶建議管理員手動執行的指令：
+
+| 平台 | 被跳過的操作 | 建議管理員執行 |
+|------|-------------|---------------|
+| Rocky | `firewall-cmd --list-all` | `sudo firewall-cmd --list-all` |
+| Rocky | `/var/log/secure` | `sudo ausearch -m USER_AUTH -ts recent` |
+| Ubuntu | `ufw status verbose` | `sudo ufw status verbose` |
+| Ubuntu | `/var/log/auth.log` | `sudo journalctl -u ssh --since '1 hour ago'` |
+| Windows | Security Event Log | `Get-WinEvent -FilterHashtable @{LogName='Security'}` |
+
+---
+
+## 指令清冊模組
+
+`reports/scan_commands.json` 記錄了所有使用的非管理員指令（Linux + Windows），  
+方便合規審計與文檔。
+
 ```bash
-chmod +x scan_ubuntu.sh
-./scan_ubuntu.sh
-```
+# Python 載入器
+python3 tools/load_scan_commands.py reports/scan_commands.json --os linux --format table
 
-**Rocky Linux:**
-```bash
-chmod +x scan_rocky.sh
-./scan_rocky.sh
-```
-
----
-
-## Output
-
-Reports are saved to:
-
-```
-./reports/syskit_report_YYYYMMDD_HHMMSS.txt
-```
-
-### Sample Report Structure
-
-```
-================================================================================
-  SysKit Scanner v1.0.0  |  Windows PowerShell (Non-Elevated Safe Mode)
-  Scan started : 2026-03-01 14:30:00
-  Hostname     : WORKSTATION-01
-  User         : engineer
-================================================================================
-
-────────────────────────────────────────────────────────────────
-  [OS & Build]
-  Time: 14:30:01
-────────────────────────────────────────────────────────────────
-  Caption      : Microsoft Windows 11 Pro
-  Version      : 10.0.22631
-  ...
-
-────────────────────────────────────────────────────────────────
-  [TCP Listening Ports]
-  ...
-
-────────────────────────────────────────────────────────────────
-  [Suspicious Files in Key Directories]
-  [!] Found 2 suspicious file(s):
-  ...
-
-================================================================================
-  Scan completed : 2026-03-01 14:31:15
-  Report saved to: ./reports/syskit_report_20260301_143000.txt
-================================================================================
+# PowerShell 載入器
+Import-Module .\tools\ScanCommands.ps1
+Get-ScanCommands -Path .\reports\scan_commands.json -OS windows | Format-Table
 ```
 
 ---
 
-## File Structure
+## 系統需求
 
-```
-toolkit/
-├── launcher.py          # Cross-platform menu launcher
-├── scan.ps1             # Windows PowerShell scanner
-├── scan_ubuntu.sh       # Ubuntu Bash scanner
-├── scan_rocky.sh        # Rocky Linux Bash scanner
-├── README.md            # This file
-└── reports/             # Generated reports (auto-created)
-    └── syskit_report_YYYYMMDD_HHMMSS.txt
-```
+| 平台 | 最低需求 |
+|------|---------|
+| Linux | Bash 4+, coreutils, iproute2, procps |
+| Windows | PowerShell 5.1+ (Windows 10/11, Server 2016+) |
+| Launcher | Python 3.6+ (僅標準函式庫) |
 
 ---
 
-## Forbidden Actions (by design)
+## 常見問答
 
-The following actions are **never** performed by this toolkit:
+**Q: 為什麼某些項目顯示 [SKIPPED]？**  
+A: 該項目需要 root / admin 權限。報告中會附帶建議由管理員手動執行的指令。
 
-- ❌ Delete or overwrite files (`rm -rf`, `Remove-Item -Recurse -Force`)
-- ❌ Install or remove packages (`apt install`, `dnf install`)
-- ❌ Modify firewall rules (`ufw allow`, `firewall-cmd --add-port`)
-- ❌ Stop/restart services or the system (`systemctl stop`, `shutdown`)
-- ❌ Low-level disk operations (`dd`, `mkfs`, `parted`)
-- ❌ Execute remote/untrusted scripts or binaries
-- ❌ Port-scan external hosts
-- ❌ Request or use elevated privileges
+**Q: 報告存在哪裡？**  
+A: `./reports/syskit_report_YYYYMMDD_HHMMSS.txt` 和 `.json`。
+
+**Q: 可以排程自動執行嗎？**  
+A: 可以。例如 Linux crontab 或 Windows Task Scheduler，以一般使用者身分排程即可。
+
+**Q: JSON 檔的 `cis_score` 可以用來自動告警嗎？**  
+A: 可以。讀取 `cis_score.failed` 即可判斷是否需要發送通知。
+
+---
+
+## 版本歷程
+
+| 版本 | 日期 | 變更 |
+|------|------|------|
+| 2.0.0 | 2025-01 | 完整重寫：CIS-like 10 項基準、JSON 輸出、繁中表頭、閾值設定、取證建議、零權限設計 |
+| 1.0.0 | 2024 | 初始版本 |
 
 ---
 
 ## License
 
-This toolkit is provided as-is for internal use by system engineers.  
-Use at your own discretion. No warranty is implied.
+MIT License — 此工具僅供系統健檢用途，不保證結果的完整性或準確性。  
+使用者應自行評估風險。
