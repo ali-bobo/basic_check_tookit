@@ -1,0 +1,226 @@
+[
+  {
+    "id": "linux_free",
+    "platform": "linux",
+    "requires_admin": false,
+    "command": "free -h",
+    "description": "顯示記憶體與 Swap 使用量（human-readable）"
+  },
+  {
+    "id": "linux_uptime",
+    "platform": "linux",
+    "requires_admin": false,
+    "command": "uptime",
+    "description": "顯示系統啟動時間、平均負載"
+  },
+  {
+    "id": "linux_uname",
+    "platform": "linux",
+    "requires_admin": false,
+    "command": "uname -a",
+    "description": "顯示核心版本與架構"
+  },
+  {
+    "id": "linux_ps_cpu",
+    "platform": "linux",
+    "requires_admin": false,
+    "command": "ps aux --sort=-%cpu",
+    "description": "列出所有程序，依 CPU 使用率排序"
+  },
+  {
+    "id": "linux_ps_mem",
+    "platform": "linux",
+    "requires_admin": false,
+    "command": "ps aux --sort=-%mem",
+    "description": "列出所有程序，依記憶體使用率排序"
+  },
+  {
+    "id": "linux_ss_listen",
+    "platform": "linux",
+    "requires_admin": false,
+    "command": "ss -tuln",
+    "description": "列出所有 TCP/UDP 監聽埠（不解析主機名稱）"
+  },
+  {
+    "id": "linux_ss_estab",
+    "platform": "linux",
+    "requires_admin": false,
+    "command": "ss -tun",
+    "description": "列出已建立的 TCP/UDP 連線"
+  },
+  {
+    "id": "linux_df",
+    "platform": "linux",
+    "requires_admin": false,
+    "command": "df -hT",
+    "description": "顯示各磁碟分割的使用量與檔案系統類型"
+  },
+  {
+    "id": "linux_who",
+    "platform": "linux",
+    "requires_admin": false,
+    "command": "who",
+    "description": "顯示目前登入的使用者"
+  },
+  {
+    "id": "linux_last",
+    "platform": "linux",
+    "requires_admin": false,
+    "command": "last -n 20",
+    "description": "顯示最近 20 筆登入紀錄"
+  },
+  {
+    "id": "linux_ip_addr",
+    "platform": "linux",
+    "requires_admin": false,
+    "command": "ip -4 addr show",
+    "description": "顯示所有 IPv4 位址"
+  },
+  {
+    "id": "linux_ip_route",
+    "platform": "linux",
+    "requires_admin": false,
+    "command": "ip -4 route show",
+    "description": "顯示 IPv4 路由表"
+  },
+  {
+    "id": "linux_hostname",
+    "platform": "linux",
+    "requires_admin": false,
+    "command": "hostname",
+    "description": "顯示主機名稱"
+  },
+  {
+    "id": "linux_lscpu",
+    "platform": "linux",
+    "requires_admin": false,
+    "command": "lscpu",
+    "description": "顯示 CPU 架構資訊"
+  },
+  {
+    "id": "linux_crontab",
+    "platform": "linux",
+    "requires_admin": false,
+    "command": "cat /etc/crontab",
+    "description": "顯示系統 crontab（需可讀）"
+  },
+  {
+    "id": "linux_os_release",
+    "platform": "linux",
+    "requires_admin": false,
+    "command": "cat /etc/os-release",
+    "description": "顯示作業系統版本資訊"
+  },
+  {
+    "id": "linux_passwd_uid",
+    "platform": "linux",
+    "requires_admin": false,
+    "command": "awk -F: '$3 >= 1000 {print $1, $3, $6, $7}' /etc/passwd",
+    "description": "列出 UID >= 1000 的一般使用者帳號"
+  },
+  {
+    "id": "linux_lastb_admin",
+    "platform": "linux",
+    "requires_admin": true,
+    "command": "last -n 20",
+    "description": "[管理員] 顯示失敗登入紀錄（需 root）"
+  },
+  {
+    "id": "windows_ps_mem",
+    "platform": "windows",
+    "requires_admin": false,
+    "command": "Get-Process | Sort-Object -Descending WorkingSet64 | Select-Object -First 25 Id, ProcessName",
+    "description": "列出前 25 個記憶體佔用最高的程序"
+  },
+  {
+    "id": "windows_tcp_listen",
+    "platform": "windows",
+    "requires_admin": false,
+    "command": "Get-NetTCPConnection -State Listen",
+    "description": "列出所有 TCP 監聽埠"
+  },
+  {
+    "id": "windows_services_auto",
+    "platform": "windows",
+    "requires_admin": false,
+    "command": "Get-Service | Where-Object { $_.StartType -eq 'Automatic' }",
+    "description": "列出所有自動啟動服務"
+  },
+  {
+    "id": "windows_local_users",
+    "platform": "windows",
+    "requires_admin": false,
+    "command": "Get-LocalUser",
+    "description": "列出本機使用者帳號"
+  },
+  {
+    "id": "windows_disk",
+    "platform": "windows",
+    "requires_admin": false,
+    "command": "Get-Volume",
+    "description": "顯示磁碟分割使用量"
+  },
+  {
+    "id": "windows_firewall",
+    "platform": "windows",
+    "requires_admin": false,
+    "command": "Get-NetFirewallProfile",
+    "description": "顯示防火牆設定檔狀態"
+  },
+  {
+    "id": "windows_defender",
+    "platform": "windows",
+    "requires_admin": false,
+    "command": "Get-MpComputerStatus",
+    "description": "顯示 Windows Defender 保護狀態"
+  },
+  {
+    "id": "windows_startup",
+    "platform": "windows",
+    "requires_admin": false,
+    "command": "Get-CimInstance Win32_StartupCommand",
+    "description": "列出系統啟動項目"
+  },
+  {
+    "id": "windows_scheduled_tasks",
+    "platform": "windows",
+    "requires_admin": false,
+    "command": "Get-ScheduledTask",
+    "description": "列出排程工作"
+  },
+  {
+    "id": "windows_os_info",
+    "platform": "windows",
+    "requires_admin": false,
+    "command": "Get-CimInstance Win32_OperatingSystem",
+    "description": "顯示作業系統詳細資訊"
+  },
+  {
+    "id": "macos_sw_vers",
+    "platform": "macos",
+    "requires_admin": false,
+    "command": "sw_vers",
+    "description": "顯示 macOS 版本資訊"
+  },
+  {
+    "id": "macos_vm_stat",
+    "platform": "macos",
+    "requires_admin": false,
+    "command": "vm_stat",
+    "description": "顯示虛擬記憶體統計（頁面數）"
+  },
+  {
+    "id": "macos_lsof_listen",
+    "platform": "macos",
+    "requires_admin": false,
+    "command": "lsof -i -P -n -sTCP:LISTEN",
+    "description": "列出所有 TCP 監聽程序與埠號"
+  },
+  {
+    "id": "macos_diskutil",
+    "platform": "macos",
+    "requires_admin": false,
+    "command": "diskutil list",
+    "description": "列出所有磁碟與分割"
+  }
+]

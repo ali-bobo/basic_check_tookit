@@ -1,0 +1,33 @@
+id,platform,requires_admin,command,description
+linux_free,linux,false,free -h,顯示記憶體與 Swap 使用量（human-readable）
+linux_uptime,linux,false,uptime,顯示系統啟動時間、平均負載
+linux_uname,linux,false,uname -a,顯示核心版本與架構
+linux_ps_cpu,linux,false,ps aux --sort=-%cpu,列出所有程序依 CPU 使用率排序
+linux_ps_mem,linux,false,ps aux --sort=-%mem,列出所有程序依記憶體使用率排序
+linux_ss_listen,linux,false,ss -tuln,列出所有 TCP/UDP 監聽埠（不解析主機名稱）
+linux_ss_estab,linux,false,ss -tun,列出已建立的 TCP/UDP 連線
+linux_df,linux,false,df -hT,顯示各磁碟分割的使用量與檔案系統類型
+linux_who,linux,false,who,顯示目前登入的使用者
+linux_last,linux,false,last -n 20,顯示最近 20 筆登入紀錄
+linux_ip_addr,linux,false,ip -4 addr show,顯示所有 IPv4 位址
+linux_ip_route,linux,false,ip -4 route show,顯示 IPv4 路由表
+linux_hostname,linux,false,hostname,顯示主機名稱
+linux_lscpu,linux,false,lscpu,顯示 CPU 架構資訊
+linux_crontab,linux,false,cat /etc/crontab,顯示系統 crontab（需可讀）
+linux_os_release,linux,false,cat /etc/os-release,顯示作業系統版本資訊
+linux_passwd_uid,linux,false,"awk -F: '$3 >= 1000 {print $1, $3, $6, $7}' /etc/passwd",列出 UID >= 1000 的一般使用者帳號
+linux_lastb_admin,linux,true,last -n 20,[管理員] 顯示失敗登入紀錄（需 root）
+windows_ps_mem,windows,false,Get-Process | Sort-Object -Descending WorkingSet64 | Select-Object -First 25 Id,列出前 25 個記憶體佔用最高的程序
+windows_tcp_listen,windows,false,Get-NetTCPConnection -State Listen,列出所有 TCP 監聽埠
+windows_services_auto,windows,false,Get-Service | Where-Object { $_.StartType -eq 'Automatic' },列出所有自動啟動服務
+windows_local_users,windows,false,Get-LocalUser,列出本機使用者帳號
+windows_disk,windows,false,Get-Volume,顯示磁碟分割使用量
+windows_firewall,windows,false,Get-NetFirewallProfile,顯示防火牆設定檔狀態
+windows_defender,windows,false,Get-MpComputerStatus,顯示 Windows Defender 保護狀態
+windows_startup,windows,false,Get-CimInstance Win32_StartupCommand,列出系統啟動項目
+windows_scheduled_tasks,windows,false,Get-ScheduledTask,列出排程工作
+windows_os_info,windows,false,Get-CimInstance Win32_OperatingSystem,顯示作業系統詳細資訊
+macos_sw_vers,macos,false,sw_vers,顯示 macOS 版本資訊
+macos_vm_stat,macos,false,vm_stat,顯示虛擬記憶體統計（頁面數）
+macos_lsof_listen,macos,false,lsof -i -P -n -sTCP:LISTEN,列出所有 TCP 監聽程序與埠號
+macos_diskutil,macos,false,diskutil list,列出所有磁碟與分割

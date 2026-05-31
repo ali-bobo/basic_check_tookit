@@ -35,6 +35,9 @@ $MEM_CRIT_MB       = 100
 $DISK_WARN_PERCENT = 80
 $DISK_CRIT_PERCENT = 90
 $DANGEROUS_PORTS   = @(21,23,25,69,111,135,139,445,514,631,1433,1434,3306,3389,5432,5900,6379,8080,9200,27017)
+# Windows 系統服務固定綁定的埠。這些埠在 Windows 上必然監聽，但 Windows 防火牆
+# 啟用時預設封鎖外部連線，直接 FAIL 會產生誤報。
+$WINDOWS_SYSTEM_PORTS = @(135, 139, 445, 5040)
 
 $confPath = Join-Path $PSScriptRoot "config\thresholds.conf"
 if (Test-Path $confPath) {
@@ -286,9 +289,15 @@ Write-Host "[4/12] 連線與監聽埠..." -ForegroundColor Yellow
 $detailReport += "`n  >> [4/12] 連線與監聽 (Connections & Listening)`n"
 
 $listenPorts = @()
+$listenPortAddresses = @{}   # port -> [LocalAddress list]，用於區分 loopback-only vs 全介面監聽
 try {
     $tcpListen = Get-NetTCPConnection -State Listen -ErrorAction Stop
     $listenPorts = $tcpListen.LocalPort | Sort-Object -Unique
+    foreach ($conn in $tcpListen) {
+        $p = $conn.LocalPort
+        if (-not $listenPortAddresses.ContainsKey($p)) { $listenPortAddresses[$p] = [System.Collections.Generic.List[string]]::new() }
+        $listenPortAddresses[$p].Add($conn.LocalAddress)
+    }
 } catch {
     $null = $SkippedChecks.Add("TCP Listen Ports (Get-NetTCPConnection)")
 }
@@ -516,14 +525,35 @@ if ($rdpOpen) {
     Add-Cis "RDP 監聽 (3389)" "PASS" "Port 3389 未監聽" ""
 }
 
-# 2 危險埠
-$foundDangerous = @()
+# 2 危險埠（區分：loopback-only / 系統服務埠+防火牆保護 / 真正曝露）
+# 根本原因：Get-NetTCPConnection 顯示所有 socket，不代表外部可達。
+# 修正策略：
+#   a) LocalAddress 只有 loopback (127.0.0.1 / ::1) → 外部不可達，不計入
+#   b) 0.0.0.0 監聽 + 屬於 $WINDOWS_SYSTEM_PORTS + 防火牆啟用 → 系統服務正常，降為 PASS 附注
+#   c) 其他情況 → FAIL
+$LOOPBACK_ADDRS     = @('127.0.0.1', '::1', '0:0:0:0:0:0:0:1')
+$fwAllEnabledEarly  = $fwProfiles -and (($fwProfiles | Where-Object { -not $_.Enabled }).Count -eq 0)
+$foundDangerous     = @()  # 真正曝露，需要 FAIL
+$foundSysPortFwOk   = @()  # 系統服務埠，防火牆保護中（偽陽性）
 foreach ($dp in $DANGEROUS_PORTS) {
-    if ($listenPorts -contains $dp) { $foundDangerous += $dp }
+    if (-not ($listenPorts -contains $dp)) { continue }
+    $addrs = if ($listenPortAddresses.ContainsKey($dp)) { @($listenPortAddresses[$dp]) } else { @() }
+    # a) 全部是 loopback → 不計入
+    $nonLoopback = $addrs | Where-Object { $LOOPBACK_ADDRS -notcontains $_ }
+    if (-not $nonLoopback) { continue }
+    # b) 系統服務埠 + 防火牆啟用
+    if (($WINDOWS_SYSTEM_PORTS -contains $dp) -and $fwAllEnabledEarly) {
+        $foundSysPortFwOk += $dp
+    } else {
+        $foundDangerous += $dp
+    }
 }
 if ($foundDangerous.Count -gt 0) {
-    Add-Cis "不安全公開埠" "FAIL" "偵測到: $($foundDangerous -join ', ')" "建議管理員關閉或限制"
-    $null = $WarnFindings.Add("[PORT] 偵測到可能不安全的埠: $($foundDangerous -join ', ')")
+    $sysNote = if ($foundSysPortFwOk.Count -gt 0) { "；系統埠 $($foundSysPortFwOk -join ',') 受防火牆保護" } else { "" }
+    Add-Cis "不安全公開埠" "FAIL" "偵測到: $($foundDangerous -join ', ')${sysNote}" "建議管理員關閉或設防火牆規則"
+    $null = $WarnFindings.Add("[PORT] 危險埠 (曝露): $($foundDangerous -join ', ')")
+} elseif ($foundSysPortFwOk.Count -gt 0) {
+    Add-Cis "不安全公開埠" "PASS" "系統服務埠 $($foundSysPortFwOk -join ', ') 監聽中，Windows 防火牆已啟用保護（建議確認無開放規則）" ""
 } else {
     Add-Cis "不安全公開埠" "PASS" "未偵測到常見危險埠" ""
 }
@@ -559,19 +589,36 @@ if ($fwProfiles) {
     Add-Cis "防火牆狀態" "SKIPPED" "無法讀取" ""
 }
 
-# 6 Windows Defender
+# 6 防毒保護（Windows Defender + 第三方 AV 整合偵測）
+# 根本原因：安裝第三方防毒後，Windows 會主動停用 Defender 即時保護以避免衝突，
+# 導致 Get-MpComputerStatus.RealTimeProtectionEnabled = $false，但機器仍受保護。
+# 修正策略：先查 SecurityCenter2 WMI 命名空間（偵測所有已註冊 AV 產品），
+# 若任何一款 AV 的 productState bit[12..15]=1，代表即時保護已啟用。
 $defenderStatus = "N/A"
 try {
-    $mpStatus = Get-MpComputerStatus -ErrorAction Stop
-    if ($mpStatus.RealTimeProtectionEnabled) {
-        Add-Cis "Windows Defender" "PASS" "即時保護已啟用" ""
-        $defenderStatus = "Enabled"
+    $allAV    = Get-CimInstance -Namespace 'root/SecurityCenter2' -ClassName 'AntiVirusProduct' -ErrorAction SilentlyContinue
+    $mpStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
+    if ($mpStatus -and $mpStatus.RealTimeProtectionEnabled) {
+        Add-Cis "防毒保護" "PASS" "Windows Defender 即時保護已啟用" ""
+        $defenderStatus = "Enabled (Defender)"
+    } elseif ($allAV) {
+        # productState 編碼：bit[12..15]=1 表示即時保護已開啟
+        $activeAV = $allAV | Where-Object { (($_.productState -shr 12) -band 0xF) -eq 1 }
+        if ($activeAV) {
+            $avNames = ($activeAV | Select-Object -ExpandProperty displayName) -join ", "
+            Add-Cis "防毒保護" "PASS" "第三方防毒已啟用: $avNames（Defender 自動讓位，屬正常行為）" ""
+            $defenderStatus = "Enabled ($avNames)"
+        } else {
+            $avNames = ($allAV | Select-Object -ExpandProperty displayName) -join ", "
+            Add-Cis "防毒保護" "FAIL" "已安裝但即時保護疑似未啟用: $avNames" "請確認防毒軟體的即時保護已開啟"
+            $defenderStatus = "Installed but inactive ($avNames)"
+        }
     } else {
-        Add-Cis "Windows Defender" "FAIL" "即時保護未啟用" "管理員: 啟用 Windows Defender"
-        $defenderStatus = "Disabled"
+        Add-Cis "防毒保護" "FAIL" "未偵測到任何防毒軟體" "管理員: 啟用 Windows Defender 或安裝防毒軟體"
+        $defenderStatus = "None detected"
     }
 } catch {
-    Add-Cis "Windows Defender" "SKIPPED" "無法讀取 Defender 狀態" ""
+    Add-Cis "防毒保護" "SKIPPED" "無法讀取防毒狀態" ""
 }
 
 # 7 自動啟動服務數量

@@ -18,6 +18,7 @@ import platform
 import subprocess
 import shutil
 import datetime
+import glob
 
 VERSION = "2.0.0"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -36,10 +37,12 @@ def banner():
 
 
 def detect_os():
-    """Return one of: 'rocky', 'ubuntu', 'windows', 'unknown'."""
+    """Return one of: 'rocky', 'ubuntu', 'macos', 'windows', 'unknown'."""
     system = platform.system().lower()
     if system == "windows":
         return "windows"
+    elif system == "darwin":
+        return "macos"
     elif system == "linux":
         os_release = {}
         for f in ["/etc/os-release", "/usr/lib/os-release"]:
@@ -112,12 +115,42 @@ def run_windows():
     return run_script("scan.ps1", cmd)
 
 
+def run_macos():
+    return run_script("scan_macos.sh", "bash scan_macos.sh")
+
+
+def generate_html_report():
+    """呼叫 tools/generate_html.py 將最新 JSON 報告轉換為 HTML。"""
+    generator = os.path.join(SCRIPT_DIR, "tools", "generate_html.py")
+    if not os.path.isfile(generator):
+        return
+    json_files = sorted(
+        glob.glob(os.path.join(REPORT_DIR, "syskit_report_*.json")),
+        key=os.path.getmtime,
+        reverse=True,
+    )
+    if not json_files:
+        return
+    latest_json = json_files[0]
+    try:
+        result = subprocess.run(
+            [sys.executable, generator, latest_json],
+            cwd=SCRIPT_DIR,
+        )
+        if result.returncode == 0:
+            html_path = latest_json.replace(".json", ".html")
+            print("  [*] HTML 報告: {}".format(html_path))
+    except Exception as e:
+        print("  [!] HTML 報告生成失敗: {}".format(e))
+
+
 def menu():
     banner()
     detected = detect_os()
     friendly = {
         "rocky": "Rocky / CentOS / RHEL 系列",
         "ubuntu": "Ubuntu / Debian 系列",
+        "macos": "macOS / Darwin",
         "windows": "Windows",
         "unknown": "未知",
     }
@@ -128,6 +161,7 @@ def menu():
     print("  [2] 手動選擇 — Rocky / CentOS")
     print("  [3] 手動選擇 — Ubuntu / Debian")
     print("  [4] 手動選擇 — Windows")
+    print("  [5] 手動選擇 — macOS")
     print("  [0] 離開")
     print()
 
@@ -145,6 +179,8 @@ def menu():
             return run_rocky()
         elif detected == "ubuntu":
             return run_ubuntu()
+        elif detected == "macos":
+            return run_macos()
         elif detected == "windows":
             return run_windows()
         else:
@@ -156,6 +192,8 @@ def menu():
         return run_ubuntu()
     elif choice == "4":
         return run_windows()
+    elif choice == "5":
+        return run_macos()
     else:
         print("[!] 無效選項。")
         return False
@@ -172,16 +210,19 @@ def main():
 
     print()
     if success:
+        generate_html_report()
         print("=" * 56)
         print("  [✔] 掃描完成！")
         print("  [*] TXT 報告: ./reports/syskit_report_*.txt")
         print("  [*] JSON 報告: ./reports/syskit_report_*.json")
+        print("  [*] HTML 報告: ./reports/syskit_report_*.html")
         print("=" * 56)
     else:
         print("=" * 56)
         print("  [✘] 掃描未成功完成，請檢查上方訊息。")
         print("=" * 56)
     print()
+    sys.exit(0 if success else 1)
 
 
 if __name__ == "__main__":

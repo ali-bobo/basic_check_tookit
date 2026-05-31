@@ -42,8 +42,32 @@ function Invoke-ScanCommand {
         return
     }
     $commandString = $cmd.command
+
+    # Security: allowlist 驗證可執行檔名，防止指令注入 (CWE-78)
+    $ALLOWED_EXECUTABLES = @(
+        'free','ps','ss','df','uptime','who','last','uname','cat','find','grep',
+        'awk','sed','sort','head','tail','ls','stat','id','hostname','ip','ping',
+        'netstat','lsof','top','pgrep','date','lscpu','mount','df','du','file',
+        'lsmod','dmesg','journalctl','systemctl','hostnamectl','timedatectl',
+        'Get-Process','Get-Service','Get-NetTCPConnection','Get-NetFirewallProfile',
+        'Get-CimInstance','Get-LocalUser','Get-Volume','Get-PSDrive',
+        'Get-ScheduledTask','Get-WinEvent','Test-NetConnection','Get-MpComputerStatus'
+    )
+
+    # 取得第一個 token（可執行檔名稱）
+    $parts = $commandString -split '\s+', 2
+    $executable = [System.IO.Path]::GetFileNameWithoutExtension($parts[0])
+
+    if ($executable -notin $ALLOWED_EXECUTABLES) {
+        Write-Error "Security: executable '$executable' is not in the allowed list. Execution blocked."
+        return
+    }
+
     if ($PSCmdlet.ShouldProcess("Invoke command", $commandString)) {
-        Invoke-Expression $commandString
+        # 使用 & 運算子而非 Invoke-Expression，避免 shell injection
+        $argString = if ($parts.Count -gt 1) { $parts[1] } else { '' }
+        $argList = if ($argString) { $argString -split '\s+' } else { @() }
+        & $parts[0] @argList
     } else {
         Write-Output "Dry-run: $commandString"
     }

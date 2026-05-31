@@ -3,3 +3,8 @@ __pycache__/
 *.env
 .vscode/
 *.log
+
+# 掃描產出報告（含主機 IP/帳號等敏感資訊，禁止推上 repo）
+reports/syskit_report_*.txt
+reports/syskit_report_*.json
+reports/syskit_report_*.html
